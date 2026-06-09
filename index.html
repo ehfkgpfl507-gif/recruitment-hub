@@ -1,3 +1,8 @@
+bash
+
+cat /mnt/user-data/outputs/recruitment_hub.html
+출력
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -265,6 +270,82 @@
   .select-all-count { font-size: 12px; color: var(--gray-500); }
   .task-cb.all-checked { background: var(--black); border-color: var(--black); }
 
+  /* 인라인 텍스트 편집 */
+  .editable {
+    cursor: text; border-radius: 4px; padding: 1px 4px; margin: -1px -4px;
+    transition: background 0.15s; outline: none;
+  }
+  .editable:hover { background: var(--gray-50); }
+  .editable:focus { background: var(--white); box-shadow: 0 0 0 2px var(--gray-300); }
+  .edit-hint {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; color: var(--gray-300); margin-left: 8px;
+  }
+  .info-table td[contenteditable="true"] {
+    cursor: text; outline: none; border-radius: 4px;
+  }
+  .info-table td[contenteditable="true"]:hover { background: var(--gray-50); }
+  .info-table td[contenteditable="true"]:focus { background: var(--white); box-shadow: inset 0 0 0 1.5px var(--gray-300); }
+  .task-text[contenteditable="true"]:hover { background: var(--gray-50); border-radius: 3px; }
+  .task-text[contenteditable="true"]:focus { background: var(--white); outline: none; box-shadow: 0 0 0 1.5px var(--gray-300); border-radius: 3px; }
+  .edit-mode-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; background: var(--amber-light); border: 1px solid #fde68a;
+    border-radius: var(--r-sm); margin-bottom: 16px; font-size: 12px; color: var(--amber);
+  }
+  .edit-mode-bar button {
+    font-family: var(--font); font-size: 11px; font-weight: 500;
+    padding: 4px 12px; border-radius: 99px; cursor: pointer;
+    border: 1px solid var(--amber); background: var(--white); color: var(--amber);
+    transition: all 0.15s;
+  }
+  .edit-mode-bar button:hover { background: var(--amber); color: var(--white); }
+  .btn-edit-toggle {
+    font-family: var(--font); font-size: 12px;
+    padding: 5px 14px; border-radius: 99px; cursor: pointer;
+    border: 1px solid var(--gray-100); background: var(--white); color: var(--gray-500);
+    transition: all 0.15s; margin-left: 8px;
+  }
+  .btn-edit-toggle:hover { border-color: var(--gray-300); color: var(--black); }
+
+  /* 카드 더보기 메뉴 */
+  .page-card { position: relative; overflow: visible; }
+  .card-menu-btn {
+    position: absolute; top: 10px; right: 10px;
+    width: 26px; height: 26px; border-radius: 6px;
+    border: none; background: transparent; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--gray-300); font-size: 16px; line-height: 1;
+    transition: all 0.15s; z-index: 2;
+  }
+  .card-menu-btn:hover { background: var(--gray-50); color: var(--gray-700); }
+  .card-menu-dropdown {
+    display: none; position: absolute; top: 36px; right: 8px;
+    background: var(--white); border: 1px solid var(--gray-100);
+    border-radius: var(--r-sm); box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    z-index: 50; min-width: 120px; overflow: hidden;
+  }
+  .card-menu-dropdown.open { display: block; }
+  .card-menu-item {
+    display: block; width: 100%; padding: 9px 14px; text-align: left;
+    font-family: var(--font); font-size: 13px; cursor: pointer;
+    border: none; background: none; color: var(--black); transition: background 0.12s;
+  }
+  .card-menu-item:hover { background: var(--gray-50); }
+  .card-menu-item.danger { color: var(--red); }
+  .card-menu-item.danger:hover { background: var(--red-light); }
+
+  /* phase 전체선택 */
+  .phase-select-all {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; margin-bottom: 6px; border-radius: var(--r-sm);
+    cursor: pointer; transition: background 0.12s;
+    border: 1px solid var(--gray-100); background: var(--gray-50);
+  }
+  .phase-select-all:hover { background: var(--gray-100); }
+  .phase-select-all-label { font-size: 11px; font-weight: 500; color: var(--gray-500); flex: 1; }
+  .phase-select-all-count { font-size: 10px; color: var(--gray-300); }
+
   @media (max-width: 540px) {
     .form-grid { grid-template-columns: 1fr; }
     .home-hero h1 { font-size: 28px; }
@@ -460,12 +541,24 @@ function renderHome() {
   const onboards = pages.filter(p => p.type === 'onboard');
 
   rGrid.innerHTML = '';
-  recruits.forEach(p => {
+  // TO발생일 기준 정렬 (없으면 뒤로)
+  const sortedRecruits = [...recruits].sort((a,b) => {
+    if (!a.toDate && !b.toDate) return 0;
+    if (!a.toDate) return 1;
+    if (!b.toDate) return -1;
+    return new Date(a.toDate) - new Date(b.toDate);
+  });
+  sortedRecruits.forEach(p => {
     const tasks = recruitTasks(p).flatMap(ph => ph.tasks.filter(t => !t.sub));
     const done = tasks.filter(t => p.checks?.[t.id]).length;
     const pct = tasks.length ? Math.round(done/tasks.length*100) : 0;
     const currentPhase = getCurrentPhase(p, recruitTasks(p));
     rGrid.innerHTML += `<div class="page-card" onclick="openPage('${p.id}')">
+      <button class="card-menu-btn" onclick="event.stopPropagation();toggleCardMenu('${p.id}')">⋯</button>
+      <div class="card-menu-dropdown" id="menu-${p.id}">
+        <button class="card-menu-item" onclick="event.stopPropagation();openPage('${p.id}');closeAllMenus()">열기</button>
+        <button class="card-menu-item danger" onclick="event.stopPropagation();deletePageFromCard('${p.id}')">삭제</button>
+      </div>
       <div class="page-card-type recruit">채용</div>
       <div class="page-card-title">${p.job}</div>
       <div class="page-card-meta">${p.dept}${p.manager ? ' · ' + p.manager : ''}</div>
@@ -493,12 +586,24 @@ function renderHome() {
     return done === tasks.length && tasks.length > 0;
   });
 
-  activeOnboards.forEach(p => {
+  // 입사예정일 기준 정렬
+  const sortedActive = [...activeOnboards].sort((a,b) => {
+    if (!a.joinDate && !b.joinDate) return 0;
+    if (!a.joinDate) return 1;
+    if (!b.joinDate) return -1;
+    return new Date(a.joinDate) - new Date(b.joinDate);
+  });
+  sortedActive.forEach(p => {
     const tasks = onboardTasks(p).flatMap(ph => ph.tasks.filter(t => !t.sub));
     const done = tasks.filter(t => p.checks?.[t.id]).length;
     const pct = tasks.length ? Math.round(done/tasks.length*100) : 0;
     const currentPhase = getCurrentPhase(p, onboardTasks(p));
     oGrid.innerHTML += `<div class="page-card" onclick="openPage('${p.id}')">
+      <button class="card-menu-btn" onclick="event.stopPropagation();toggleCardMenu('${p.id}')">⋯</button>
+      <div class="card-menu-dropdown" id="menu-${p.id}">
+        <button class="card-menu-item" onclick="event.stopPropagation();openPage('${p.id}');closeAllMenus()">열기</button>
+        <button class="card-menu-item danger" onclick="event.stopPropagation();deletePageFromCard('${p.id}')">삭제</button>
+      </div>
       <div class="page-card-type onboard">입사준비</div>
       <div class="page-card-title">${p.name}</div>
       <div class="page-card-meta">${p.job || ''}${p.dept ? ' · ' + p.dept : ''}${p.joinDate ? ' · ' + fmtDate(p.joinDate) : ''}</div>
@@ -520,9 +625,20 @@ function renderHome() {
   if (completedOnboards.length > 0) {
     completedSection.style.display = 'block';
     completedGrid.innerHTML = '';
-    completedOnboards.forEach(p => {
+    const sortedCompleted = [...completedOnboards].sort((a,b) => {
+      if (!a.joinDate && !b.joinDate) return 0;
+      if (!a.joinDate) return 1;
+      if (!b.joinDate) return -1;
+      return new Date(a.joinDate) - new Date(b.joinDate);
+    });
+    sortedCompleted.forEach(p => {
       const tasks = onboardTasks(p).flatMap(ph => ph.tasks.filter(t => !t.sub));
-      completedGrid.innerHTML += `<div class="page-card" onclick="openPage('${p.id}')" style="opacity:0.7">
+      completedGrid.innerHTML += `<div class="page-card" onclick="openPage('${p.id}')" style="opacity:0.75">
+        <button class="card-menu-btn" onclick="event.stopPropagation();toggleCardMenu('${p.id}')">⋯</button>
+        <div class="card-menu-dropdown" id="menu-${p.id}">
+          <button class="card-menu-item" onclick="event.stopPropagation();openPage('${p.id}');closeAllMenus()">열기</button>
+          <button class="card-menu-item danger" onclick="event.stopPropagation();deletePageFromCard('${p.id}')">삭제</button>
+        </div>
         <div class="page-card-type" style="color:var(--green)">입사완료 ✓</div>
         <div class="page-card-title">${p.name}</div>
         <div class="page-card-meta">${p.job || ''}${p.dept ? ' · ' + p.dept : ''}${p.joinDate ? ' · ' + fmtDate(p.joinDate) : ''}</div>
@@ -561,16 +677,16 @@ function openPage(id) {
   let infoRows = '';
   if (isRecruit) {
     infoRows = `
-      <tr><td>직무명</td><td>${p.job}</td></tr>
-      <tr><td>부서</td><td>${p.dept}</td></tr>
-      <tr><td>채용요청 팀장</td><td>${p.manager || '—'}</td></tr>
+      <tr><td>직무명</td><td id="inf-job">${p.job}</td></tr>
+      <tr><td>부서</td><td id="inf-dept">${p.dept}</td></tr>
+      <tr><td>채용요청 팀장</td><td id="inf-manager">${p.manager || '—'}</td></tr>
       <tr><td>TO 발생일</td><td>${fmtDate(p.toDate)}</td></tr>
       <tr><td>목표 입사일</td><td>${fmtDate(p.targetDate)}</td></tr>`;
   } else {
     infoRows = `
-      <tr><td>입사자명</td><td>${p.name}</td></tr>
-      <tr><td>직무</td><td>${p.job || '—'}</td></tr>
-      <tr><td>부서</td><td>${p.dept || '—'}</td></tr>
+      <tr><td>입사자명</td><td id="inf-name">${p.name}</td></tr>
+      <tr><td>직무</td><td id="inf-job">${p.job || '—'}</td></tr>
+      <tr><td>부서</td><td id="inf-dept">${p.dept || '—'}</td></tr>
       <tr><td>입사예정일</td><td>${fmtDate(p.joinDate)}</td></tr>`;
   }
 
@@ -592,17 +708,20 @@ function openPage(id) {
     ph.tasks.forEach(t => {
       const checked = p.checks?.[t.id] || false;
       const isSub = t.sub === true;
-      tasksHtml += `<div class="task-item${checked?' done':''}${isSub?' sub':''}" onclick="toggleTask('${id}','${t.id}')">
+      const tText = p.edits?.[t.id + '_text'] || t.text;
+      const tSub = (t.sub && t.sub !== true) ? (p.edits?.[t.id + '_sub'] || t.sub) : null;
+      tasksHtml += `<div class="task-item${checked?' done':''}${isSub?' sub':''}" onclick="handleTaskClick(event,'${id}','${t.id}')">
         <div class="task-cb">
           <svg class="task-cb-check" width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
-        <div>
-          <div class="task-text">${t.text}</div>
-          ${(t.sub && t.sub !== true) ? `<div class="task-sub">${t.sub}</div>` : ''}
+        <div style="flex:1">
+          <div class="task-text" id="te-${id}-${t.id}">${tText}</div>
+          ${tSub ? `<div class="task-sub" id="se-${id}-${t.id}">${tSub}</div>` : ''}
         </div>
       </div>`;
     });
 
+    const phaseAllIds = ph.tasks.map(t => t.id);
     phasesHtml += `<div class="phase-block">
       <div class="phase-head">
         <div class="phase-num${allDone?' done':''}">${pi+1}</div>
@@ -615,15 +734,29 @@ function openPage(id) {
           ${calHtml}
         </div>
       </div>
+      <div class="phase-select-all" onclick="togglePhase('${id}', ${JSON.stringify(phaseAllIds).replace(/"/g,"'")}, ${allDone})">
+        <div class="task-cb${allDone?' all-checked':''}">
+          <svg class="task-cb-check" style="display:${allDone?'block':'none'}" width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <span class="phase-select-all-label">${allDone ? '전체 해제' : '전체 선택'}</span>
+        <span class="phase-select-all-count">${phaseDone} / ${mainTasks.length}</span>
+      </div>
       <div class="task-list">${tasksHtml}</div>
     </div>`;
   });
 
   document.getElementById('page-content').innerHTML = `
-    <button class="page-back" onclick="goHome()">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      전체 목록
-    </button>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:32px">
+      <button class="page-back" style="margin-bottom:0" onclick="goHome()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        전체 목록
+      </button>
+      <button class="btn-edit-toggle" id="edit-toggle-btn" onclick="toggleEditMode('${id}')">✏️ 텍스트 편집</button>
+    </div>
+    <div class="edit-mode-bar" id="edit-mode-bar" style="display:none">
+      ✏️ 편집 모드 — 텍스트를 클릭해서 수정하세요
+      <button onclick="saveEdits('${id}')">저장 완료</button>
+    </div>
     <div class="page-eyebrow ${p.type}">${isRecruit ? '직무 채용' : '합격자 입사준비'}</div>
     <h1 class="page-title">${isRecruit ? p.job : p.name}</h1>
     <div class="page-date">${isRecruit ? p.dept + (p.manager ? ' · ' + p.manager : '') : (p.job || '') + (p.dept ? ' · ' + p.dept : '') + (p.joinDate ? ' · ' + fmtDate(p.joinDate) : '')}</div>
@@ -685,6 +818,115 @@ function toggleAll(pageId, currentlyAllDone) {
   renderHome();
   requestAnimationFrame(() => window.scrollTo(0, scrollY));
 }
+
+// ── 편집 모드 ──
+let editModeActive = false;
+
+function toggleEditMode(pageId) {
+  editModeActive = !editModeActive;
+  const bar = document.getElementById('edit-mode-bar');
+  const btn = document.getElementById('edit-toggle-btn');
+  bar.style.display = editModeActive ? 'flex' : 'none';
+  btn.textContent = editModeActive ? '✏️ 편집 중...' : '✏️ 텍스트 편집';
+  btn.style.color = editModeActive ? 'var(--amber)' : '';
+  btn.style.borderColor = editModeActive ? 'var(--amber)' : '';
+
+  // task texts
+  document.querySelectorAll('.task-text, .task-sub').forEach(el => {
+    el.contentEditable = editModeActive ? 'true' : 'false';
+    if (editModeActive) el.style.cursor = 'text';
+    else el.style.cursor = '';
+  });
+  // info table tds
+  ['inf-job','inf-dept','inf-manager','inf-name'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.contentEditable = editModeActive ? 'true' : 'false';
+    }
+  });
+}
+
+function saveEdits(pageId) {
+  const p = pages.find(x => x.id === pageId);
+  if (!p) return;
+  if (!p.edits) p.edits = {};
+
+  // save task texts
+  document.querySelectorAll('[id^="te-' + pageId + '-"]').forEach(el => {
+    const taskId = el.id.replace('te-' + pageId + '-', '');
+    p.edits[taskId + '_text'] = el.innerText.trim();
+  });
+  document.querySelectorAll('[id^="se-' + pageId + '-"]').forEach(el => {
+    const taskId = el.id.replace('se-' + pageId + '-', '');
+    p.edits[taskId + '_sub'] = el.innerText.trim();
+  });
+
+  // save info fields
+  const isRecruit = p.type === 'recruit';
+  if (isRecruit) {
+    const job = document.getElementById('inf-job');
+    const dept = document.getElementById('inf-dept');
+    const mgr = document.getElementById('inf-manager');
+    if (job) p.job = job.innerText.trim();
+    if (dept) p.dept = dept.innerText.trim();
+    if (mgr) p.manager = mgr.innerText.trim();
+  } else {
+    const name = document.getElementById('inf-name');
+    const job = document.getElementById('inf-job');
+    const dept = document.getElementById('inf-dept');
+    if (name) p.name = name.innerText.trim();
+    if (job) p.job = job.innerText.trim();
+    if (dept) p.dept = dept.innerText.trim();
+  }
+
+  save();
+  editModeActive = false;
+  const scrollY = window.scrollY;
+  openPage(pageId);
+  renderHome();
+  requestAnimationFrame(() => window.scrollTo(0, scrollY));
+}
+
+function handleTaskClick(event, pageId, taskId) {
+  if (editModeActive) return; // 편집 모드일 땐 체크 안 함
+  toggleTask(pageId, taskId);
+}
+
+function togglePhase(pageId, taskIds, currentlyAllDone) {
+  const p = pages.find(x => x.id === pageId);
+  if (!p) return;
+  if (!p.checks) p.checks = {};
+  taskIds.forEach(id => { p.checks[id] = !currentlyAllDone; });
+  save();
+  const scrollY = window.scrollY;
+  openPage(pageId);
+  renderHome();
+  requestAnimationFrame(() => window.scrollTo(0, scrollY));
+}
+
+function toggleCardMenu(id) {
+  closeAllMenus();
+  const menu = document.getElementById('menu-' + id);
+  if (menu) menu.classList.toggle('open');
+}
+
+function closeAllMenus() {
+  document.querySelectorAll('.card-menu-dropdown').forEach(m => m.classList.remove('open'));
+}
+
+function deletePageFromCard(id) {
+  closeAllMenus();
+  if (!confirm('이 페이지를 삭제할까요?')) return;
+  pages = pages.filter(p => p.id !== id);
+  save();
+  renderHome();
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.card-menu-btn') && !e.target.closest('.card-menu-dropdown')) {
+    closeAllMenus();
+  }
+});
 
 function goHome() {
   document.getElementById('view-page').classList.remove('active');
@@ -783,3 +1025,33 @@ renderHome();
 </script>
 </body>
 </html>
+완료
+이제 깃허브에서 이렇게 하면 돼요:
+
+github.com/ehfkgpf1507/recruitment-hub 접속
+index.html 클릭
+✏️ 클릭
+전체 선택 (Ctrl+A) → 위 코드 전체 붙여넣기 (Ctrl+V)
+Commit changes 클릭 → Commit changes
+2분 후 https://ehfkgpf1507.github.io/recruitment-hub 접속
+추가된 기능: 페이지 우측 상단 ✏️ 텍스트 편집 버튼 클릭 → 모든 텍스트 직접 수정 → 저장 완료 클릭하면 저장돼요!
+
+5번어딧어
+
+오후 3:32
+위에 코드 블록 오른쪽 상단에 복사 버튼(📋) 있어요! 클릭하면 전체 복사돼요 😊
+
+1780986793763_image.png
+Commit changes가 어딧냐고
+
+오후 3:33
+오른쪽 상단에 연필 아이콘(✏️) 보이죠? 그거 클릭하면 편집 모드로 들어가고 거기서 Commit changes 버튼이 나와요!
+
+오른쪽 상단 ✏️ → 전체선택(Ctrl+A) → 붙여넣기(Ctrl+V) → 오른쪽 상단 초록색 Commit changes 클릭!
+
+
+
+
+
+
+
